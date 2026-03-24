@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
@@ -10,11 +10,11 @@
 <style>
 body{font-family:Arial;background:#0f172a;color:#fff;margin:0}
 .header{display:flex;justify-content:space-between;padding:15px;background:#020617}
-.logo{background:#22c55e;padding:6px 12px;border-radius:8px;font-weight:bold}
+.logo{background:#facc15;color:#000;padding:6px 12px;border-radius:8px;font-weight:bold}
 .container{padding:20px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px}
 .card{background:#1e293b;padding:15px;border-radius:12px}
-input,select,button{margin:4px;padding:8px;border-radius:6px;border:none}
+input,select,button{margin:4px;padding:10px;border-radius:8px;border:none}
 button{background:#22c55e;font-weight:bold;cursor:pointer}
 canvas{background:#fff;border-radius:10px}
 </style>
@@ -22,7 +22,7 @@ canvas{background:#fff;border-radius:10px}
 <body>
 
 <div class="header">
-<div class="logo">⚽ Meu Scout 9x3</div>
+<div class="logo">🎲 Meu Scout 9x3</div>
 <button onclick="window.print()">PDF</button>
 </div>
 
@@ -30,20 +30,48 @@ canvas{background:#fff;border-radius:10px}
 
 <div class="card">
 <h3>Nova Partida</h3>
-<input id="data" placeholder="Data (YYYY-MM-DD)">
+<input id="data" type="date">
 <input id="adv" placeholder="Adversário">
 <input id="gols" type="number" placeholder="Gols feitos">
 <input id="sofridos" type="number" placeholder="Gols sofridos">
+
+<select id="tipoJogo">
+<option value="">Tipo</option>
+<option>Amistoso</option>
+<option>Open</option>
+<option>Mata-Mata</option>
+<option>Campeonato</option>
+</select>
+
 <select id="resultado">
 <option value="">Resultado</option>
 <option>V</option><option>E</option><option>D</option>
 </select>
 
-<h4>Zonas</h4>
-<div id="zonas"></div>
+<h4>Zona do Gol</h4>
+<select id="zonaGol">
+<option>Longe</option><option>Médio</option><option>Perto</option><option>Pênalti</option>
+</select>
 
-<h4>Finalização</h4>
-<div id="tipos"></div>
+<h4>Tipo Finalização</h4>
+<select id="tipoGol">
+<option>Quinada</option><option>Chapada</option><option>Quebrada</option><option>Bola Longa</option><option>Outras</option>
+</select>
+
+<h4>Posição do Gol</h4>
+<select id="posicaoGol">
+<option>Frontal</option><option>Diagonal</option><option>Meio a Meio</option><option>Sem Ângulo</option>
+</select>
+
+<h4>Tipo de Chute</h4>
+<select id="chuteGol">
+<option>Rasteiro Direita</option><option>Rasteiro Esquerda</option><option>Alto Direita</option><option>Alto Esquerda</option><option>Centro por cima</option><option>Quique</option>
+</select>
+
+<h4>Botão</h4>
+<select id="botaoGol">
+<option>Direita</option><option>Esquerda</option><option>Centro</option>
+</select>
 
 <button onclick="addJogo()">Salvar</button>
 </div>
@@ -59,31 +87,19 @@ canvas{background:#fff;border-radius:10px}
 <div class="card"><canvas id="linha"></canvas></div>
 <div class="card"><canvas id="pizza"></canvas></div>
 <div class="card"><canvas id="zona"></canvas></div>
+<div class="card"><canvas id="posicao"></canvas></div>
 </div>
 
 <div class="card"><h3>🏆 Ranking</h3><div id="ranking"></div></div>
 <div class="card"><h3>🎯 Eficiência</h3><div id="eficiencia"></div></div>
-<div class="card"><h3>📅 Performance Mensal</h3><div id="mensal"></div></div>
+
 <div class="card"><h3>📜 Histórico</h3><div id="lista"></div></div>
 
 </div>
 
 <script>
-const zonasLista=["Longe","Médio","Perto","Pênalti","Gol contra"];
-const tiposLista=["Quinada","Chapada","Quebrada","Bola Longa","Outras"];
-
 let jogos=JSON.parse(localStorage.getItem('jogos')||'[]');
 let editIndex=null;
-let zonasTemp={}, tiposTemp={};
-
-function init(){
-zonasLista.forEach(z=>{
-zonas.innerHTML+=`${z}: <input type='number' onchange="zonasTemp['${z}']=+this.value||0"> `;
-});
-tiposLista.forEach(t=>{
-tipos.innerHTML+=`${t}: <input type='number' onchange="tiposTemp['${t}']=+this.value||0"> `;
-});
-}
 
 function salvar(){localStorage.setItem('jogos',JSON.stringify(jogos))}
 
@@ -94,13 +110,16 @@ adversario:adv.value,
 gols:+gols.value,
 sofridos:+sofridos.value,
 resultado:resultado.value,
-zonas:{...zonasTemp},
-tipos:{...tiposTemp}
+tipo:tipoJogo.value,
+zona:zonaGol.value,
+tipoGol:tipoGol.value,
+posicao:posicaoGol.value,
+chute:chuteGol.value,
+botao:botaoGol.value
 };
 
 if(editIndex!==null){jogos[editIndex]=j;editIndex=null;}else{jogos.push(j);} 
 
-zonasTemp={};tiposTemp={};
 salvar();render();
 }
 
@@ -126,19 +145,19 @@ let apv=total?((v/total)*100).toFixed(1):0;
 
 tj.innerText=total;tg.innerText=gols;ts.innerText=saldo;ap.innerText=apv+'%';
 
-// gráficos
 new Chart(linha,{type:'line',data:{labels:jogos.map(j=>j.data),datasets:[{data:jogos.map(j=>j.gols)}]}});
 
-let totalTipos={}, totalZonas={};
+let tipos={}, zonas={}, posicoes={};
 jogos.forEach(j=>{
-Object.entries(j.tipos||{}).forEach(([k,v])=>{if(!totalTipos[k])totalTipos[k]=0;totalTipos[k]+=v});
-Object.entries(j.zonas||{}).forEach(([k,v])=>{if(!totalZonas[k])totalZonas[k]=0;totalZonas[k]+=v});
+tipos[j.tipoGol]=(tipos[j.tipoGol]||0)+1;
+zonas[j.zona]=(zonas[j.zona]||0)+1;
+posicoes[j.posicao]=(posicoes[j.posicao]||0)+1;
 });
 
-new Chart(pizza,{type:'pie',data:{labels:Object.keys(totalTipos),datasets:[{data:Object.values(totalTipos)}]}});
-new Chart(zona,{type:'pie',data:{labels:Object.keys(totalZonas),datasets:[{data:Object.values(totalZonas)}]}});
+new Chart(pizza,{type:'pie',data:{labels:Object.keys(tipos),datasets:[{data:Object.values(tipos)}]}});
+new Chart(zona,{type:'pie',data:{labels:Object.keys(zonas),datasets:[{data:Object.values(zonas)}]}});
+new Chart(posicao,{type:'pie',data:{labels:Object.keys(posicoes),datasets:[{data:Object.values(posicoes)}]}});
 
-// ranking
 let advStats={};
 jogos.forEach(j=>{
 if(!advStats[j.adversario])advStats[j.adversario]={v:0,j:0};
@@ -153,35 +172,17 @@ if(perc<min){min=perc;pior=k}
 });
 ranking.innerHTML=`Melhor: ${melhor||'-'}<br>Pior: ${pior||'-'}`;
 
-// eficiência
 let ef='';
-Object.entries(totalTipos).forEach(([k,v])=>{ef+=`${k}: ${(v/gols*100||0).toFixed(1)}%<br>`});
-ef+='<br>';
-Object.entries(totalZonas).forEach(([k,v])=>{ef+=`${k}: ${(v/gols*100||0).toFixed(1)}%<br>`});
+Object.entries(tipos).forEach(([k,v])=>{ef+=`${k}: ${(v/gols*100||0).toFixed(1)}%<br>`});
 eficiencia.innerHTML=ef;
 
-// mensal
-let mesStats={};
-jogos.forEach(j=>{
-let mes=j.data?.slice(0,7);
-if(!mesStats[mes])mesStats[mes]={g:0};
-mesStats[mes].g+=j.gols;
-});
-let best='',worst='',b=0,w=999;
-Object.entries(mesStats).forEach(([k,v])=>{
-if(v.g>b){b=v.g;best=k}
-if(v.g<w){w=v.g;worst=k}
-});
-mensal.innerHTML=`Melhor mês: ${best||'-'} (${b})<br>Pior mês: ${worst||'-'} (${w})`;
-
-// histórico
 let html='';
 jogos.forEach((j,i)=>{
 html+=`${j.data} ${j.adversario} ${j.gols}-${j.sofridos} <button onclick="editar(${i})">E</button><button onclick="del(${i})">X</button><br>`});
 lista.innerHTML=html;
 }
 
-init();render();
+render();
 
 if ('serviceWorker' in navigator) {
  navigator.serviceWorker.register('service-worker.js');

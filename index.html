@@ -1,0 +1,255 @@
+﻿<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meu Scout 9x3</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#22c55e">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{font-family:Arial;background:#0f172a;color:#fff;margin:0}
+.header{display:flex;justify-content:space-between;padding:15px;background:#020617}
+.logo{background:#facc15;color:#000;padding:6px 12px;border-radius:8px;font-weight:bold}
+.container{padding:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px}
+.card{background:#1e293b;padding:15px;border-radius:12px}
+input,select,button{margin:4px;padding:10px;border-radius:8px;border:none}
+button{background:#22c55e;font-weight:bold;cursor:pointer}
+canvas{background:#fff;border-radius:10px}
+.goal{background:#020617;padding:10px;border-radius:10px;margin-top:10px}
+
+/* PRINT */
+@media print{
+body{background:#fff;color:#000}
+.header, .card:first-child, #lista{display:none}
+canvas{page-break-inside:avoid}
+}
+
+/* PDF HISTÓRICO */
+.print-historico .header,
+.print-historico .card:first-child,
+.print-historico .grid,
+.print-historico canvas,
+.print-historico #ranking,
+.print-historico #eficiencia,
+.print-historico #ia{
+display:none
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+<div class="logo">🎲 Meu Scout 9x3</div>
+<div>
+<button onclick="window.print()">PDF Análise</button>
+<button onclick="pdfHistorico()">PDF Histórico</button>
+</div>
+</div>
+
+<div class="container">
+
+<div class="card">
+<h3>Nova Partida</h3>
+<input id="data" type="date">
+<input id="adv" placeholder="Adversário">
+<input id="timeAdv" placeholder="Equipe do adversário">
+
+<input id="gols" type="number" placeholder="Gols feitos" oninput="gerarGols()">
+<input id="sofridos" type="number" placeholder="Gols sofridos">
+
+<select id="tipoJogo">
+<option value="">Tipo</option>
+<option>Amistoso</option><option>Open</option><option>Mata-Mata</option><option>Campeonato</option>
+</select>
+
+<select id="resultado">
+<option value="">Resultado</option>
+<option>V</option><option>E</option><option>D</option>
+</select>
+
+<div id="listaGols"></div>
+
+<button onclick="addJogo()">Salvar</button>
+</div>
+
+<div class="grid">
+<div class="card"><b id="tj"></b><br>Jogos</div>
+<div class="card"><b id="tg"></b><br>Gols Marcados</div>
+<div class="card"><b id="tsf"></b><br>Gols Sofridos</div>
+<div class="card"><b id="ts"></b><br>Saldo</div>
+<div class="card"><b id="ap"></b><br>Aproveitamento</div>
+<div class="card"><b id="mg"></b><br>Média de Gols</div>
+</div>
+
+<div class="grid">
+<div class="card"><canvas id="tipoChart"></canvas></div>
+<div class="card"><canvas id="zonaChart"></canvas></div>
+<div class="card"><canvas id="posicaoChart"></canvas></div>
+<div class="card"><canvas id="chuteChart"></canvas></div>
+<div class="card"><canvas id="ladoChart"></canvas></div>
+<div class="card"><canvas id="tipoPartidaChart"></canvas></div>
+</div>
+
+<div class="card"><h3>🏆 Ranking</h3><div id="ranking"></div></div>
+<div class="card"><h3>🎯 Eficiência</h3><div id="eficiencia"></div></div>
+<div class="card"><h3>🧠 Análise Inteligente</h3><div id="ia"></div></div>
+
+<div class="card"><h3>📜 Histórico</h3><div id="lista"></div></div>
+
+</div>
+
+<script>
+let jogos=JSON.parse(localStorage.getItem('jogos')||'[]');
+let editIndex=null;
+let charts={};
+
+function salvar(){localStorage.setItem('jogos',JSON.stringify(jogos))}
+
+function gerarGols(){
+listaGols.innerHTML='';
+let qtd=+gols.value||0;
+for(let i=0;i<qtd;i++){
+listaGols.innerHTML+=`
+<div class='goal'>
+<b>Gol ${i+1}</b><br>
+Zona: <select class='zona'><option>Longe</option><option>Médio</option><option>Perto</option><option>Pênalti</option></select>
+Tipo: <select class='tipo'><option>Quinada</option><option>Chapada</option><option>Quebrada</option><option>Bola Longa</option><option>Outras</option></select>
+Posição: <select class='posicao'><option>Frontal</option><option>Diagonal</option><option>Meio a Meio</option><option>Sem Ângulo</option></select>
+Chute: <select class='chute'><option>Rasteiro Direita</option><option>Rasteiro Esquerda</option><option>Alto Direita</option><option>Alto Esquerda</option><option>Centro por cima</option><option>Quique</option></select>
+Lado: <select class='lado'><option>Direita</option><option>Esquerda</option><option>Centro</option></select>
+</div>`;
+}
+}
+
+function addJogo(){
+let golsDetalhe=[];
+document.querySelectorAll('.goal').forEach(g=>{
+golsDetalhe.push({
+zona:g.querySelector('.zona').value,
+tipo:g.querySelector('.tipo').value,
+posicao:g.querySelector('.posicao').value,
+chute:g.querySelector('.chute').value,
+lado:g.querySelector('.lado').value
+});
+});
+
+let j={
+data:data.value,
+adversario:adv.value,
+time:timeAdv.value,
+gols:+gols.value,
+sofridos:+sofridos.value,
+resultado:resultado.value,
+tipo:tipoJogo.value,
+detalhes:golsDetalhe
+};
+
+if(editIndex!==null){jogos[editIndex]=j;editIndex=null;}else{jogos.push(j);} 
+
+salvar();render();
+}
+
+function editar(i){
+editIndex=i;
+let j=jogos[i];
+data.value=j.data;
+adv.value=j.adversario;
+timeAdv.value=j.time || '';
+gols.value=j.gols;
+sofridos.value=j.sofridos;
+resultado.value=j.resultado;
+tipoJogo.value=j.tipo;
+gerarGols();
+}
+
+function del(i){jogos.splice(i,1);salvar();render()}
+
+function pdfHistorico(){
+document.body.classList.add('print-historico');
+window.print();
+setTimeout(()=>document.body.classList.remove('print-historico'),500);
+}
+
+function render(){
+let total=jogos.length;
+let golsTotal=jogos.reduce((a,b)=>a+b.gols,0);
+let sofridos=jogos.reduce((a,b)=>a+b.sofridos,0);
+let saldo=golsTotal-sofridos;
+let v=jogos.filter(j=>j.resultado=='V').length;
+let apv=total?((v/total)*100).toFixed(1):0;
+let media = total ? (golsTotal/total).toFixed(2) : 0;
+
+tj.innerText=total;
+tg.innerText=golsTotal;
+tsf.innerText=sofridos;
+ts.innerText=saldo;
+ap.innerText=apv+'%';
+mg.innerText=media;
+
+let tipo={},zona={},posicao={},chute={},lado={},tipoPartida={};
+
+jogos.forEach(j=>{
+tipoPartida[j.tipo]=(tipoPartida[j.tipo]||0)+1;
+(j.detalhes||[]).forEach(g=>{
+tipo[g.tipo]=(tipo[g.tipo]||0)+1;
+zona[g.zona]=(zona[g.zona]||0)+1;
+posicao[g.posicao]=(posicao[g.posicao]||0)+1;
+chute[g.chute]=(chute[g.chute]||0)+1;
+lado[g.lado]=(lado[g.lado]||0)+1;
+});
+});
+
+function criarChart(id,dataObj){
+if(charts[id]) charts[id].destroy();
+charts[id]=new Chart(document.getElementById(id),{
+type:'pie',
+data:{labels:Object.keys(dataObj),datasets:[{data:Object.values(dataObj)}]}
+});
+}
+
+criarChart('tipoChart',tipo);
+criarChart('zonaChart',zona);
+criarChart('posicaoChart',posicao);
+criarChart('chuteChart',chute);
+criarChart('ladoChart',lado);
+criarChart('tipoPartidaChart',tipoPartida);
+
+// IA
+let melhorTipo = Object.entries(tipo).sort((a,b)=>b[1]-a[1])[0];
+let melhorZona = Object.entries(zona).sort((a,b)=>b[1]-a[1])[0];
+let melhorChute = Object.entries(chute).sort((a,b)=>b[1]-a[1])[0];
+
+ia.innerHTML=`
+Seu tipo mais forte: ${melhorTipo?melhorTipo[0]:'-'}<br>
+Sua melhor zona: ${melhorZona?melhorZona[0]:'-'}<br>
+Seu chute mais eficiente: ${melhorChute?melhorChute[0]:'-'}
+`;
+
+// eficiência
+let ef='';
+Object.entries(tipo).forEach(([k,v])=>ef+=`Tipo ${k}: ${(v/golsTotal*100||0).toFixed(1)}%<br>`);
+Object.entries(zona).forEach(([k,v])=>ef+=`Zona ${k}: ${(v/golsTotal*100||0).toFixed(1)}%<br>`);
+eficiencia.innerHTML=ef;
+
+// histórico
+let html='';
+jogos.forEach((j,i)=>{
+html+=`${j.data} | ${j.tipo} | ${j.adversario} (${j.time||'-'}) ${j.gols}-${j.sofridos} 
+<button onclick="editar(${i})">Editar</button>
+<button onclick="del(${i})">X</button><br>`});
+lista.innerHTML=html;
+}
+
+render();
+
+if ('serviceWorker' in navigator) {
+ navigator.serviceWorker.register('service-worker.js');
+}
+</script>
+
+</body>
+</html>
